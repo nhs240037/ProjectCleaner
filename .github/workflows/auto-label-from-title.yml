@@ -1,0 +1,40 @@
+name: Auto Label PR from Title
+
+on:
+  pull_request_target:
+    types: [opened, edited]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add labels based on PR title
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const title = context.payload.pull_request.title.toLowerCase();
+            const labelsToAdd = [];
+
+            // タイトルの接頭辞(Prefix)パターン判定
+            if (title.startsWith('feat:') || title.startsWith('feat!:')) {
+              labelsToAdd.push('feature');
+            } else if (title.startsWith('fix:') || title.startsWith('fix!:')) {
+              labelsToAdd.push('bug');
+            } else if (title.startsWith('chore:') || title.startsWith('build:') || title.startsWith('ci:')) {
+              labelsToAdd.push('chore');
+            } else if (title.startsWith('docs:')) {
+              labelsToAdd.push('documentation');
+            }
+
+            // マッチするラベルがあればPRに付与
+            if (labelsToAdd.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                labels: labelsToAdd
+              });
+            }
