@@ -1,4 +1,4 @@
-name-template: 'v$NEXT_PATCH_VERSION'
+name-template: '$NEXT_PATCH_VERSION'
 tag-template: '$NEXT_PATCH_VERSION'
 categories:
   - title: '🚀 新機能・機能追加 / New Features'
