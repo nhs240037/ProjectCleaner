@@ -63,6 +63,41 @@ jobs:
           Compress-Archive -Path ./publish/ProjectCleaner.dll, ./publish/ProjectCleaner.deps.json -DestinationPath ProjectCleaner-Update.zip -ErrorAction SilentlyContinue
 
 
+
+      - name: Get Previous Tag
+        id: prev_tag
+        shell: pwsh
+        run: |
+          $currentTag = "${{ github.ref_name }}"
+          
+          # git の全タグ情報を取得
+          git fetch --tags --force
+
+          if ($currentTag -match "-(dev|test|canary|beta|alpha)") {
+              # --- 1. プレリリースの場合 ---
+              # タグ名からサフィックス名 (dev, test など) を抽出
+              $suffix = $Matches[1]
+              Write-Host "Detected Prerelease Suffix: $suffix"
+
+              # 同じサフィックスを持つタグの一覧を最新順に取得（今回のタグを除く）
+              $prev = (git tag -l "*-$suffix*" --sort=-v:refname | Where-Object { $_ -ne $currentTag } | Select-Object -First 1)
+          } else {
+              # --- 2. 正式版 (Stable) の場合 ---
+              # ハイフンを含まない (プレリリースではない) タグ一覧を取得
+              $prev = (git tag -l "*.*.*" --sort=-v:refname | Where-Object { $_ -ne $currentTag -and $_ -notmatch "-" } | Select-Object -First 1)
+          }
+
+          if (-not $prev) {
+              Write-Host "No previous matching tag found."
+              $prev = ""
+          } else {
+              Write-Host "Previous Tag: $prev"
+          }
+
+          # 後続のステップ（または Release Notes 生成）用に環境変数/Output へ保存
+          "PREVIOUS_TAG=$prev" >> $env:GITHUB_ENV
+          "previous_tag=$prev" >> $env:GITHUB_OUTPUT
+
       # 5. GitHub Release を作成（-beta や -alpha は自動的に Pre-release になる）
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
@@ -70,7 +105,9 @@ jobs:
           files: | 
             ProjectCleaner-win-x64.zip
             ProjectCleaner-Update.zip
-          prerelease: auto # タグにハイフンや文字列（-alpha, -betaなど）が含まれる場合に自動でPre-releaseフラグをONにする
-          discussion-category: Announcements  # GitHub Discussions のカテゴリを指定（必要に応じて変更）
+          prerelease: ${{ contains(github.ref_name, '-') }} # タグにハイフンや文字列（-alpha, -betaなど）が含まれる場合に自動でPre-releaseフラグをONにする
+          discussion_category_name: Announcements  # GitHub Discussions のカテゴリを指定（必要に応じて変更）
+          generate_release_notes: true # GitHub Release のリリースノートを自動生成する場合は true に設定
+          previous_tag: ${{ steps.prev_tag.outputs.previous_tag }} # 直前のタグを指定して差分リリースノートを生成
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
