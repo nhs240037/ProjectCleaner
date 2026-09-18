@@ -29,16 +29,37 @@ jobs:
         run: |
           dotnet publish ProjectCleaner.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true -o ./publish
 
-      # 4. 生成されたファイルを zip に圧縮
-      - name: Create Zip Archive
+      - name: Organize Files
         run: |
+          mkdir ./publish
+          # 本体の exe やアプリ固有 DLL のみルートに配置
+          Move-Item ./publish_raw/ProjectCleaner.exe ./publish/
+          Move-Item ./publish_raw/ProjectCleaner.dll ./publish/
+          Move-Item ./publish_raw/ProjectCleaner.deps.json ./publish/
+          Move-Item ./publish_raw/ProjectCleaner.runtimeconfig.json ./publish/
+          
+          # ランタイムやその他の大量のDLLを lib フォルダにまとめる
+          mkdir ./publish/lib
+          Get-ChildItem ./publish_raw/* | Move-Item -Destination ./publish/lib/
+
+      # 4. 生成されたファイルを zip に圧縮
+      - name: Create Zip Archives
+        run: |
+          # 1. フルセット (初回用)
           Compress-Archive -Path ./publish/* -DestinationPath ProjectCleaner-win-x64.zip
+
+          # 2. アプリ本体のみ (自動更新用: ProjectCleaner.dll, ProjectCleaner.exe など)
+          # ランタイムDLLを含まないため数MB程度に収まります
+          Compress-Archive -Path ./publish/ProjectCleaner.dll, ./publish/ProjectCleaner.exe, ./publish/ProjectCleaner.deps.json -DestinationPath ProjectCleaner-Update.zip
+
 
       # 5. GitHub Release を作成（-beta や -alpha は自動的に Pre-release になる）
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
-          files: ProjectCleaner-win-x64.zip
+          files: | 
+            ProjectCleaner-win-x64.zip
+            ProjectCleaner-Update.zip
           prerelease: auto # タグにハイフンや文字列（-alpha, -betaなど）が含まれる場合に自動でPre-releaseフラグをONにする
           discussion-category: Announcements  # GitHub Discussions のカテゴリを指定（必要に応じて変更）
         env:
