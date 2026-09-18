@@ -38,25 +38,29 @@ jobs:
           if (Test-Path ./publish) { Remove-Item -Recurse -Force ./publish }
           New-Item -ItemType Directory -Path ./publish
           New-Item -ItemType Directory -Path ./publish/lib
-          # 本体の exe やアプリ固有 DLL のみルートに配置
+
+          # メインのアプリケーションファイル群（exe, dll, deps, runtimeconfig 等）をルートに移動
           Move-Item ./publish_raw/ProjectCleaner.exe ./publish/
           Move-Item ./publish_raw/ProjectCleaner.dll ./publish/
-          Move-Item ./publish_raw/ProjectCleaner.deps.json ./publish/
-          Move-Item ./publish_raw/ProjectCleaner.runtimeconfig.json ./publish/
-          
-          # ランタイムやその他の大量のDLLを lib フォルダにまとめる
-          mkdir ./publish/lib
-          Get-ChildItem ./publish_raw/* | Move-Item -Destination ./publish/lib/
+          Move-Item ./publish_raw/ProjectCleaner.deps.json ./publish/ -ErrorAction SilentlyContinue
+          Move-Item ./publish_raw/ProjectCleaner.runtimeconfig.json ./publish/ -ErrorAction SilentlyContinue
+          Move-Item ./publish_raw/ProjectCleaner.pdb ./publish/ -ErrorAction SilentlyContinue
+
+          # 残りの依存ファイル（ランタイム等の大量DLL）を lib フォルダへ一括移動
+          Get-ChildItem -Path ./publish_raw/* | Move-Item -Destination ./publish/lib/ -ErrorAction SilentlyContinue
+
+          # ログ出力用：整理後の構造を確認
+          Write-Host "=== Final publish directory structure ==="
+          Get-ChildItem -Path ./publish -Recurse
 
       # 4. 生成されたファイルを zip に圧縮
       - name: Create Zip Archives
         run: |
-          # 1. フルセット (初回用)
+          # 1. フルセット (初回インストール用)
           Compress-Archive -Path ./publish/* -DestinationPath ProjectCleaner-win-x64.zip
 
-          # 2. アプリ本体のみ (自動更新用: ProjectCleaner.dll, ProjectCleaner.exe など)
-          # ランタイムDLLを含まないため数MB程度に収まります
-          Compress-Archive -Path ./publish/ProjectCleaner.dll, ./publish/ProjectCleaner.exe, ./publish/ProjectCleaner.deps.json -DestinationPath ProjectCleaner-Update.zip
+          # 2. 差分アップデート用 (アプリ本体のみ)
+          Compress-Archive -Path ./publish/ProjectCleaner.dll, ./publish/ProjectCleaner.deps.json -DestinationPath ProjectCleaner-Update.zip -ErrorAction SilentlyContinue
 
 
       # 5. GitHub Release を作成（-beta や -alpha は自動的に Pre-release になる）
