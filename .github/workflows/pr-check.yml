@@ -1,0 +1,19 @@
+name: PR Build Check
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore dependencies
+        run: dotnet restore ProjectCleaner.csproj
+      - name: Build
+        run: dotnet build ProjectCleaner.csproj --no-restore -c Release
