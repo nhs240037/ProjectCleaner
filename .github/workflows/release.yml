@@ -31,6 +31,10 @@ jobs:
 
       - name: Organize Files
         run: |
+          # フォルダ構造をログに出力して確認
+          Write-Host "=== publish_raw contents ==="
+          Get-ChildItem -Path ./publish_raw -Recurse
+
           if (Test-Path ./publish) { Remove-Item -Recurse -Force ./publish }
           New-Item -ItemType Directory -Path ./publish
           New-Item -ItemType Directory -Path ./publish/lib
