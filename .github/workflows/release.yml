@@ -27,7 +27,7 @@ jobs:
       # 3. リリース用ビルド（Publish）
       - name: Publish App
         run: |
-          dotnet publish ProjectCleaner.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true -o ./publish_raw
+          dotnet publish ProjectCleaner.csproj -c Release -r win-x64 --self-contained true -o ./publish_raw
 
       - name: Organize Files
         run: |
