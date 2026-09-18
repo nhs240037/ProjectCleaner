@@ -9,15 +9,18 @@ on:
 jobs:
   build-and-release:
     runs-on: windows-latest
+    permissions:
+      contents: write # GitHub Release を作成するために必要
+      discussions: write # GitHub Release を作成するために必要
 
     steps:
       # 1. リポジトリのコードをチェックアウト
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # 2. .NET SDK のセットアップ
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x' # 必要に応じてプロジェクトのバージョンに合わせて変更
 
@@ -33,9 +36,10 @@ jobs:
 
       # 5. GitHub Release を作成（-beta や -alpha は自動的に Pre-release になる）
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: ProjectCleaner-win-x64.zip
           prerelease: auto # タグにハイフンや文字列（-alpha, -betaなど）が含まれる場合に自動でPre-releaseフラグをONにする
+          discussion-category: Announcements  # GitHub Discussions のカテゴリを指定（必要に応じて変更）
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
