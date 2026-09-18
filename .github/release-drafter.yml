@@ -13,6 +13,7 @@ categories:
     labels:
       - 'dependencies'
       - 'chore'
+      - 'ci'
 change-template: '- $TITLE (#$NUMBER) @$AUTHOR'
 template: |
   ## 変更内容 / What's Changed
