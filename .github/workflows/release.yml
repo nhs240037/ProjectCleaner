@@ -3,63 +3,45 @@ name: Build and Release
 on:
   push:
     tags:
-      - '*.*.*'        # 0.0.0 や 1.2.3
-      - '*.*.*-*'      # 0.1.0-beta や 1.0.0-alpha.1 などハイフン付きタグも対象にする
+      - '*.*.*' 
+      - '*.*.*-*' 
 
 jobs:
   build-and-release:
     runs-on: windows-latest
     permissions:
-      contents: write # GitHub Release を作成するために必要
-      discussions: write # GitHub Release を作成するために必要
+      contents: write
+      discussions: write
 
     steps:
-      # 1. リポジトリのコードをチェックアウト
       - name: Checkout Code
         uses: actions/checkout@v7
 
-      # 2. .NET SDK のセットアップ
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '8.0.x' # 必要に応じてプロジェクトのバージョンに合わせて変更
+          dotnet-version: '8.0.x'
 
-      # 3. リリース用ビルド（Publish）
       - name: Publish App
         run: |
           dotnet publish ProjectCleaner.csproj -c Release -r win-x64 --self-contained true -o ./publish_raw
 
       - name: Organize Files
         run: |
-          # フォルダ構造をログに出力して確認
-          Write-Host "=== publish_raw contents ==="
-          Get-ChildItem -Path ./publish_raw -Recurse
-
           if (Test-Path ./publish) { Remove-Item -Recurse -Force ./publish }
           New-Item -ItemType Directory -Path ./publish
           New-Item -ItemType Directory -Path ./publish/lib
-
-          # メインのアプリケーションファイル群（exe, dll, deps, runtimeconfig 等）をルートに移動
           Move-Item ./publish_raw/ProjectCleaner.exe ./publish/
           Move-Item ./publish_raw/ProjectCleaner.dll ./publish/
           Move-Item ./publish_raw/ProjectCleaner.deps.json ./publish/ -ErrorAction SilentlyContinue
           Move-Item ./publish_raw/ProjectCleaner.runtimeconfig.json ./publish/ -ErrorAction SilentlyContinue
           Move-Item ./publish_raw/ProjectCleaner.pdb ./publish/ -ErrorAction SilentlyContinue
-
-          # 残りの依存ファイル（ランタイム等の大量DLL）を lib フォルダへ一括移動
           Get-ChildItem -Path ./publish_raw/* | Move-Item -Destination ./publish/lib/ -ErrorAction SilentlyContinue
 
-          # ログ出力用：整理後の構造を確認
-          Write-Host "=== Final publish directory structure ==="
-          Get-ChildItem -Path ./publish -Recurse
 
-      # 4. 生成されたファイルを zip に圧縮
       - name: Create Zip Archives
         run: |
-          # 1. フルセット (初回インストール用)
           Compress-Archive -Path ./publish/* -DestinationPath ProjectCleaner-win-x64.zip
-
-          # 2. 差分アップデート用 (アプリ本体のみ)
           Compress-Archive -Path ./publish/ProjectCleaner.dll, ./publish/ProjectCleaner.deps.json -DestinationPath ProjectCleaner-Update.zip -ErrorAction SilentlyContinue
 
 
@@ -69,45 +51,32 @@ jobs:
         shell: pwsh
         run: |
           $currentTag = "${{ github.ref_name }}"
-          
-          # git の全タグ情報を取得
           git fetch --tags --force
-
           if ($currentTag -match "-(dev|test|canary|beta|alpha)") {
-              # --- 1. プレリリースの場合 ---
-              # タグ名からサフィックス名 (dev, test など) を抽出
               $suffix = $Matches[1]
               Write-Host "Detected Prerelease Suffix: $suffix"
-
-              # 同じサフィックスを持つタグの一覧を最新順に取得（今回のタグを除く）
               $prev = (git tag -l "*-$suffix*" --sort=-v:refname | Where-Object { $_ -ne $currentTag } | Select-Object -First 1)
           } else {
-              # --- 2. 正式版 (Stable) の場合 ---
-              # ハイフンを含まない (プレリリースではない) タグ一覧を取得
               $prev = (git tag -l "*.*.*" --sort=-v:refname | Where-Object { $_ -ne $currentTag -and $_ -notmatch "-" } | Select-Object -First 1)
           }
-
           if (-not $prev) {
               Write-Host "No previous matching tag found."
               $prev = ""
           } else {
               Write-Host "Previous Tag: $prev"
           }
-
-          # 後続のステップ（または Release Notes 生成）用に環境変数/Output へ保存
           "PREVIOUS_TAG=$prev" >> $env:GITHUB_ENV
           "previous_tag=$prev" >> $env:GITHUB_OUTPUT
 
-      # 5. GitHub Release を作成（-beta や -alpha は自動的に Pre-release になる）
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           files: | 
             ProjectCleaner-win-x64.zip
             ProjectCleaner-Update.zip
-          prerelease: ${{ contains(github.ref_name, '-') }} # タグにハイフンや文字列（-alpha, -betaなど）が含まれる場合に自動でPre-releaseフラグをONにする
-          discussion_category_name: Announcements  # GitHub Discussions のカテゴリを指定（必要に応じて変更）
-          generate_release_notes: true # GitHub Release のリリースノートを自動生成する場合は true に設定
-          previous_tag: ${{ steps.prev_tag.outputs.previous_tag }} # 直前のタグを指定して差分リリースノートを生成
+          prerelease: ${{ contains(github.ref_name, '-') }} 
+          discussion_category_name: Announcements 
+          generate_release_notes: true
+          previous_tag: ${{ steps.prev_tag.outputs.previous_tag }} 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
