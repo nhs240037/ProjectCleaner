@@ -31,7 +31,9 @@ jobs:
 
       - name: Organize Files
         run: |
-          mkdir ./publish
+          if (Test-Path ./publish) { Remove-Item -Recurse -Force ./publish }
+          New-Item -ItemType Directory -Path ./publish
+          New-Item -ItemType Directory -Path ./publish/lib
           # 本体の exe やアプリ固有 DLL のみルートに配置
           Move-Item ./publish_raw/ProjectCleaner.exe ./publish/
           Move-Item ./publish_raw/ProjectCleaner.dll ./publish/
