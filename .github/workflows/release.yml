@@ -24,15 +24,7 @@ jobs:
 
       - name: Publish App
         run: |
-          dotnet publish ProjectCleaner.csproj \
-          -c Release \
-          -r win-x64 \
-          --self-contained true \
-          /p:PublishSingleFile=true \
-          /p:IncludeNativeLibrariesForSelfExtract=true \
-          /p:EnableCompressionInSingleFile=true \
-          /p:Version=${{ github.ref_name }} \
-          -o ./publish_raw
+          dotnet publish ProjectCleaner.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=true /p:IncludeNativeLibrariesForSelfExtract=true /p:EnableCompressionInSingleFile=true /p:Version=${{ github.ref_name }} -o ./publish_raw
 
       - name: Organize Files
         shell: pwsh
