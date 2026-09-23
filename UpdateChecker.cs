@@ -8,61 +8,80 @@ namespace ProjectCleaner
 {
   public class UpdateChecker
   {
-    private const string Owner = "nhs240037"; // リポジトリの所有者名
-    private const string Repo = "ProjectCleaner"; // リポジトリ名
+    private const string Owner = "nhs240037";
+    private const string Repo = "ProjectCleaner";
 
     // 実行中のアセンブリからバージョン（例: "1.0.0" や "1.1.1-dev.1"）を取得
     private static readonly string CurrentVersion = GetCurrentVersion();
 
+    public enum VersionChannel
+    {
+      Stable,
+      Beta,
+      Alpha,
+      Dev
+    }
+
     /// <summary>
     /// 更新チェックと実行
     /// </summary>
-    /// <param name="includePrerelease">プレリリース（-dev, -canary等）も受け取る場合は true</param>
-    public static async Task CheckAndPerformUpdateAsync(bool includePrerelease = false)
+    /// <param name="channel">VersionChannel{Stable, Beta, Alpha, Dev}</param>
+    public static async Task CheckAndPerformUpdateAsync(VersionChannel channel)
     {
       try
       {
         using var client = new HttpClient();
         client.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("ProjectCleaner-Updater", "1.0"));
 
-        JsonElement targetRelease;
+        JsonElement? targetRelease = null;
 
-        if (includePrerelease)
+        if (channel == VersionChannel.Stable)
         {
-          // 全リリース取得
-          string listApiUrl = $"https://api.github.com/repos/{Owner}/{Repo}/releases?per_page=1";
-          HttpResponseMessage response = await client.GetAsync(listApiUrl);
-          if (!response.IsSuccessStatusCode) return;
-
-          string json = await response.Content.ReadAsStringAsync();
-          using JsonDocument doc = JsonDocument.Parse(json);
-          var releases = doc.RootElement.EnumerateArray();
-
-          if (!releases.Any()) return; // リリースが存在しない場合
-          targetRelease = releases.First().Clone();
+          // Stableリリース取得
+          string latestApiUrl = $"https://api.github.com/repos/{Owner}/{Repo}/releases/latest";
+          HttpResponseMessage response = await client.GetAsync(latestApiUrl);
+          if (response.IsSuccessStatusCode)
+          {
+            string json = await response.Content.ReadAsStringAsync();
+            using JsonDocument doc = JsonDocument.Parse(json);
+            targetRelease = doc.RootElement.Clone();
+          }
         }
         else
         {
-          // Latest取得
-          string latestApiUrl = $"https://api.github.com/repos/{Owner}/{Repo}/releases/latest";
-          HttpResponseMessage response = await client.GetAsync(latestApiUrl);
-          if (!response.IsSuccessStatusCode) return;
+          // プレビューチャンネル：リリース一覧から条件に合う最新リリースを検索
+          string listApiUrl = $"https://api.github.com/repos/{Owner}/{Repo}/releases?per_page=20";
+          HttpResponseMessage response = await client.GetAsync(listApiUrl);
+          if (response.IsSuccessStatusCode)
+          {
+            string json = await response.Content.ReadAsStringAsync();
+            using JsonDocument doc = JsonDocument.Parse(json);
 
-          string json = await response.Content.ReadAsStringAsync();
-          using JsonDocument doc = JsonDocument.Parse(json);
-          targetRelease = doc.RootElement.Clone();
+            foreach (var rel in doc.RootElement.EnumerateArray())
+            {
+              string tagName = rel.GetProperty("tag_name").GetString() ?? "";
+
+              //バージョン判定
+              if (IsAllowedChannel(tagName, channel))
+              {
+                targetRelease = rel.Clone();
+                break; // 最も新しい該当リリースを選択
+              }
+            }
+          }
         }
 
-        // 対象タグ名取得
-        string latestVersion = targetRelease.GetProperty("tag_name").GetString() ?? "";
+        if (targetRelease == null) return;
 
-        // バージョン比較
+        string latestVersion = targetRelease.Value.GetProperty("tag_name").GetString() ?? "";
+
+        // 新しいバージョンが存在する場合
         if (IsNewerVersion(CurrentVersion, latestVersion))
         {
-          bool isPrerelease = targetRelease.GetProperty("prerelease").GetBoolean();
-          string releaseTypeMsg = isPrerelease ? "【プレリリース版】" : "【正式版】";
+          bool isPrerelease = targetRelease.Value.GetProperty("prerelease").GetBoolean();
+          string releaseTypeMsg = isPrerelease ? $"【プレビュー版 ({channel})】" : "【正式版】";
 
-          var assets = targetRelease.GetProperty("assets").EnumerateArray();
+          var assets = targetRelease.Value.GetProperty("assets").EnumerateArray();
           var updateAsset = assets.FirstOrDefault(a =>
               a.GetProperty("name").GetString() == "ProjectCleaner-Update.zip");
 
@@ -85,8 +104,27 @@ namespace ProjectCleaner
       }
       catch (Exception ex)
       {
-        MessageBox.Show($"更新処理中にエラーが発生しました:\n{ex.Message}", "エラー", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        // バックグラウンドでの自動チェック時はログ等にとどめ、エラーを握りつぶしてもOK
+        Console.WriteLine($"更新チェックエラー: {ex.Message}");
       }
+    }
+
+    private static bool IsAllowedChannel(string tagName, VersionChannel userChannel)
+    {
+      bool isDev = tagName.Contains("-dev");
+      bool isAlpha = tagName.Contains("-alpha");
+      bool isBeta = tagName.Contains("-beta");
+
+      // プレリリース表記がないものは正式版なのでどのチャンネルでも許可
+      if (!isDev && !isAlpha && !isBeta) return true;
+
+      return userChannel switch
+      {
+        VersionChannel.Dev => true,                       // dev は dev, alpha, beta すべて対象
+        VersionChannel.Alpha => isAlpha || isBeta,        // alpha は alpha, beta のみ
+        VersionChannel.Beta => isBeta,                    // beta は beta のみ
+        _ => false
+      };
     }
 
     private static string GetCurrentVersion()
@@ -166,11 +204,7 @@ namespace ProjectCleaner
         if (File.Exists(targetPath))
         {
           string oldFilePath = targetPath + ".old";
-          if (File.Exists(oldFilePath))
-          {
-            File.Delete(oldFilePath);
-          }
-          // 実行中ファイルを別名(.old)に変更
+          if (File.Exists(oldFilePath)) File.Delete(oldFilePath);
           File.Move(targetPath, oldFilePath);
         }
 
@@ -188,9 +222,7 @@ namespace ProjectCleaner
     private static void RestartAndCleanOldFiles(string appDir)
     {
       string exePath = Application.ExecutablePath;
-
-      // アプリ終了後に .old ファイルを削除し、新しい EXE を起動するコマンドライン
-      string cmdCommand = $"/C timeout /t 2 /nobreak > NUL & del /F /Q \"{appDir}\\*.old\" & del /F /Q \"{appDir}\\lib\\*.old\" & start \"\" \"{exePath}\"";
+      string cmdCommand = $"/C timeout /t 2 /nobreak > NUL & del /F /Q \"{appDir}\\*.old\" & start \"\" \"{exePath}\"";
 
       ProcessStartInfo psi = new ProcessStartInfo
       {

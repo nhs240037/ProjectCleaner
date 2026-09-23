@@ -11,7 +11,23 @@ internal static class Program
 
     Application.EnableVisualStyles();
     Application.SetCompatibleTextRenderingDefault(false);
-    Application.Run(new MainForm(args));
+
+    // 起動引数の解析
+    UpdateChecker.VersionChannel channel = UpdateChecker.VersionChannel.Stable;
+
+    string? channelArg = args.FirstOrDefault(a => a.StartsWith("--version-channel=", StringComparison.OrdinalIgnoreCase));
+    if (channelArg != null)
+    {
+      string channelValue = channelArg.Split('=')[1].ToLowerInvariant();
+      channel = channelValue switch
+      {
+        "dev" => UpdateChecker.VersionChannel.Dev,
+        "alpha" => UpdateChecker.VersionChannel.Alpha,
+        "beta" => UpdateChecker.VersionChannel.Beta,
+        _ => UpdateChecker.VersionChannel.Stable
+      };
+    }
+    Application.Run(new MainForm(channel));
   }
 
   private static Assembly? CurrentDomain_AssemblyResolve(object sender, ResolveEventArgs args)
