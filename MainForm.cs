@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Reflection;
+using System.Text.Json;
 
 namespace ProjectCleaner;
 
@@ -17,9 +18,15 @@ internal sealed class MainForm : Form
   private readonly string _stateFilePath;
   private bool _suspendAutoSave;
 
+  // アップデートチェック用のチャンネル（デフォルトは Stable）
+  private readonly UpdateChecker.VersionChannel _versionChannel = UpdateChecker.VersionChannel.Stable;
+
+  // 1. 既存のコンストラクタ（initialRoots を受け取る）
   public MainForm(IEnumerable<string>? initialRoots = null)
   {
-    Text = "Project Cleaner";
+    string currentVersion = GetCurrentVersion();
+
+    Text = $"Project Cleaner [{currentVersion}]";
     StartPosition = FormStartPosition.CenterScreen;
     MinimumSize = new Size(1100, 720);
     Font = SystemFonts.MessageBoxFont;
@@ -46,6 +53,38 @@ internal sealed class MainForm : Form
     SaveRoots();
 
     UpdateSummary();
+
+    // フォームが表示完了したタイミングでアップデートチェックを実行
+    Shown += MainForm_Shown;
+  }
+
+  private static string GetCurrentVersion()
+  {
+    var version = Assembly.GetExecutingAssembly()
+        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+        .InformationalVersion;
+
+    if (!string.IsNullOrEmpty(version))
+    {
+      // '+' (ビルドメタデータ/コミットハッシュ) が含まれていれば削除
+      int plusIndex = version.IndexOf('+');
+      if (plusIndex >= 0) version = version.Substring(0, plusIndex);
+      return version;
+    }
+
+    return "0.0.0-dev"; // 取得できない場合のデフォルト値
+  }
+
+  public MainForm(UpdateChecker.VersionChannel channel, IEnumerable<string>? initialRoots = null)
+      : this(initialRoots)
+  {
+    _versionChannel = channel;
+  }
+
+  private async void MainForm_Shown(object? sender, EventArgs e)
+  {
+    // UI表示をブロックせずに非同期でアップデートチェック
+    await UpdateChecker.CheckAndPerformUpdateAsync(_versionChannel);
   }
 
   private void BuildLayout()
@@ -370,7 +409,7 @@ internal sealed class MainForm : Form
   {
     int total = _targetsView.Items.Count;
     int checkedCount = _targetsView.CheckedItems.Count;
-    _summaryLabel.Text = $"Roots: {_rootsList.Items.Count}   Targets: {total}   Checked: {checkedCount}";
+    _summaryLabel.Text = $"Roots: {_rootsList.Items.Count}    Targets: {total}    Checked: {checkedCount}";
   }
 
   private void SetBusy(bool busy)
@@ -454,10 +493,10 @@ internal sealed class MainForm : Form
     try
     {
       string[] roots = _rootsList.Items.Cast<object>()
-                .Select(item => item.ToString() ?? string.Empty)
-                .Where(path => !string.IsNullOrWhiteSpace(path))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
+          .Select(item => item.ToString() ?? string.Empty)
+          .Where(path => !string.IsNullOrWhiteSpace(path))
+          .Distinct(StringComparer.OrdinalIgnoreCase)
+          .ToArray();
 
       string? directory = Path.GetDirectoryName(_stateFilePath);
       if (!string.IsNullOrWhiteSpace(directory))
@@ -482,5 +521,3 @@ internal sealed class MainForm : Form
 
   private sealed record AppState(string[] Roots);
 }
-
-
