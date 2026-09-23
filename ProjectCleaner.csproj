@@ -7,6 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>ProjectCleaner</AssemblyName>
     <RootNamespace>ProjectCleaner</RootNamespace>
+    <AssemblySearchPaths>$(AssemblySearchPaths);{GAC};{RawFileName};lib\;bin\lib\</AssemblySearchPaths>
   </PropertyGroup>
 </Project>
 
