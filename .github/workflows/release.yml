@@ -24,27 +24,43 @@ jobs:
 
       - name: Publish App
         run: |
-          dotnet publish ProjectCleaner.csproj -c Release -r win-x64 --self-contained true /p:Version=${{ github.ref_name }} -o ./publish_raw
+          dotnet publish ProjectCleaner.csproj \
+          -c Release \
+          -r win-x64 \
+          --self-contained true \
+          /p:PublishSingleFile=true \
+          /p:IncludeNativeLibrariesForSelfExtract=true \
+          /p:EnableCompressionInSingleFile=true \
+          /p:Version=${{ github.ref_name }} \
+          -o ./publish_raw
 
       - name: Organize Files
+        shell: pwsh
         run: |
           if (Test-Path ./publish) { Remove-Item -Recurse -Force ./publish }
           New-Item -ItemType Directory -Path ./publish
           New-Item -ItemType Directory -Path ./publish/lib
-          Move-Item ./publish_raw/ProjectCleaner.exe ./publish/
-          Move-Item ./publish_raw/ProjectCleaner.dll ./publish/
+
+          # メインの実行ファイルをルートへ移動
+          Move-Item ./publish_raw/ProjectCleaner.exe ./publish/ -ErrorAction SilentlyContinue
+          
+          # PublishSingleFile でも生成される差分更新用・デバッグ用ファイルをルートへ（存在する場合）
+          Move-Item ./publish_raw/ProjectCleaner.dll ./publish/ -ErrorAction SilentlyContinue
           Move-Item ./publish_raw/ProjectCleaner.deps.json ./publish/ -ErrorAction SilentlyContinue
           Move-Item ./publish_raw/ProjectCleaner.runtimeconfig.json ./publish/ -ErrorAction SilentlyContinue
           Move-Item ./publish_raw/ProjectCleaner.pdb ./publish/ -ErrorAction SilentlyContinue
+
+          # 残りの依存ファイル（ネイティブDLL等）を lib フォルダーへ退避
           Get-ChildItem -Path ./publish_raw/* | Move-Item -Destination ./publish/lib/ -ErrorAction SilentlyContinue
 
-
       - name: Create Zip Archives
+        shell: pwsh
         run: |
+          # フルパッケージ (.NETランタイム同梱・ルートに.exe)
           Compress-Archive -Path ./publish/* -DestinationPath ProjectCleaner-win-x64.zip
+
+          # 差分更新用パッケージ (dll / deps.json のみ)
           Compress-Archive -Path ./publish/ProjectCleaner.dll, ./publish/ProjectCleaner.deps.json -DestinationPath ProjectCleaner-Update.zip -ErrorAction SilentlyContinue
-
-
 
       - name: Get Previous Tag
         id: prev_tag
