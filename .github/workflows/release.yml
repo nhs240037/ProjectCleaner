@@ -26,10 +26,25 @@ jobs:
         uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
+      
+      - name: Set Release Version
+        id: version
+        shell: pwsh
+        run: |
+          $ver = "${{ inputs.tag_name }}"
+          if (-not $ver) {
+            $ver = "${{ github.ref_name }}"
+          }
+          Write-Host "Target Release Version: $ver"
+          "VERSION=$ver" >> $env:GITHUB_ENV
+          "version=$ver" >> $env:GITHUB_OUTPUT
+
+      - name: Restore Dependencies
+        run: dotnet restore ProjectCleaner.csproj -r win-x64
 
       - name: Publish App
         run: |
-          dotnet publish ProjectCleaner.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=false /p:Version=${{ inputs.tag_name }} -o ./publish_raw
+          dotnet publish ProjectCleaner.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=false /p:Version=${{ steps.version.outputs.version }} -o ./publish_raw
 
       - name: Organize Files
         shell: pwsh
@@ -52,7 +67,7 @@ jobs:
         id: prev_tag
         shell: pwsh
         run: |
-          $currentTag = "${{ inputs.tag_name }}"
+          $currentTag = "${{ steps.version.outputs.version }}"
           git fetch --tags --force
           if ($currentTag -match "-(dev|test|canary|beta|alpha)") {
               $suffix = $Matches[1]
@@ -76,10 +91,10 @@ jobs:
           files: | 
             ProjectCleaner-win-x64.zip
             ProjectCleaner-Update.zip
-          prerelease: ${{ contains(inputs.tag_name, '-') }} 
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }} 
           discussion_category_name: Announcements 
           generate_release_notes: true
           previous_tag: ${{ steps.prev_tag.outputs.previous_tag }} 
-          tag_name: ${{inputs.tag_name}}
+          tag_name: ${{steps.version.outputs.version}}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
