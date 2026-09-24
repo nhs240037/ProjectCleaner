@@ -22,38 +22,33 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # .NETランタイム同梱（Self-Contained）でパブリッシュ（単一exe化はOFF）
       - name: Publish App
         run: |
           dotnet publish ProjectCleaner.csproj -c Release -r win-x64 --self-contained true /p:PublishSingleFile=false /p:Version=${{ github.ref_name }} -o ./publish_raw
 
-      # ランタイムDLL群を lib/ に集約し、直下をスッキリさせる
       - name: Organize Files
         shell: pwsh
         run: |
           if (Test-Path ./publish) { Remove-Item -Recurse -Force ./publish }
-          New-Item -ItemType Directory -Path ./publish
-          New-Item -ItemType Directory -Path ./publish/lib
+          New-Item -ItemType Directory -Path ./publish/bin -Force
 
-          # 1. 起動に必要なメインファイルと設定をルートに残す
-          Move-Item ./publish_raw/ProjectCleaner.exe ./publish/
-          Move-Item ./publish_raw/ProjectCleaner.dll ./publish/
-          Move-Item ./publish_raw/ProjectCleaner.deps.json ./publish/ -ErrorAction SilentlyContinue
-          Move-Item ./publish_raw/ProjectCleaner.runtimeconfig.json ./publish/ -ErrorAction SilentlyContinue
-          Move-Item ./publish_raw/ProjectCleaner.pdb ./publish/ -ErrorAction SilentlyContinue
+          Move-Item ./publish_raw/* ./publish/bin/
 
-          # 2. それ以外のランタイム（.NET本体のDLL等）を lib フォルダーへ移動
-          Get-ChildItem -Path ./publish_raw/* | Move-Item -Destination ./publish/lib/ -ErrorAction SilentlyContinue
+          $WScriptShell = New-Object -ComObject WScript.Shell
+          $shortcutPath = Resolve-Path ./publish | Select-Object -ExpandProperty Path
+          $shortcut = $WScriptShell.CreateShortcut("$shortcutPath\ProjectCleaner.lnk")
+          
+          $shortcut.TargetPath = "%~dp0bin\ProjectCleaner.exe"
+          $shortcut.WorkingDirectory = "%~dp0bin"
+          $shortcut.Description = "Launch ProjectCleaner"
+          $shortcut.Save()
 
-      # 2種類の Zip パッケージを作成
       - name: Create Zip Archives
         shell: pwsh
         run: |
-          # 1. 初回導入用 フルパッケージ (.NET未インストール環境でそのまま起動可能)
           Compress-Archive -Path ./publish/* -DestinationPath ProjectCleaner-win-x64.zip
 
-          # 2. 差分更新用 軽量パッケージ (ProjectCleaner.dll と deps.json のみ)
-          Compress-Archive -Path ./publish/ProjectCleaner.dll, ./publish/ProjectCleaner.deps.json -DestinationPath ProjectCleaner-Update.zip
+          Compress-Archive -Path ./publish/bin/ProjectCleaner.dll, ./publish/bin/ProjectCleaner.deps.json -DestinationPath ProjectCleaner-Update.zip
 
       - name: Get Previous Tag
         id: prev_tag
