@@ -34,14 +34,66 @@ jobs:
 
           Move-Item ./publish_raw/* ./publish/bin/
 
-          $WScriptShell = New-Object -ComObject WScript.Shell
-          $shortcutPath = Resolve-Path ./publish | Select-Object -ExpandProperty Path
-          $shortcut = $WScriptShell.CreateShortcut("$shortcutPath\ProjectCleaner.lnk")
-          
-          $shortcut.TargetPath = "%~dp0bin\ProjectCleaner.exe"
-          $shortcut.WorkingDirectory = "%~dp0bin"
-          $shortcut.Description = "Launch ProjectCleaner"
-          $shortcut.Save()
+          $setupBatContent = @'
+          @echo off
+            setlocal
+            cd /d "%~dp0"
+            powershell -ExecutionPolicy Bypass -NoProfile -Command "& {
+              Add-Type -AssemblyName System.Windows.Forms
+              Add-Type -AssemblyName System.Drawing
+
+              $form = New-Object System.Windows.Forms.Form
+              $form.Text = 'ProjectCleaner セットアップ'
+              $form.Size = New-Object System.Drawing.Size(360, 210)$form.StartPosition = 'CenterScreen'
+              $form.FormBorderStyle = 'FixedDialog'$form.MaximizeBox = $false$form.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon((Join-Path (Get-Location) 'bin\ProjectCleaner.exe'))
+
+              $label = New-Object System.Windows.Forms.Label
+              $label.Text = 'アップデートチャンネルを選択してください:'
+              $label.Location = New-Object System.Drawing.Point(20, 20)
+              $label.AutoSize =$true
+              $form.Controls.Add($label)
+
+              $combo = New-Object System.Windows.Forms.ComboBox
+              $combo.Location = New-Object System.Drawing.Point(20, 45)
+              $combo.Size = New-Object System.Drawing.Size(300, 30)$combo.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList
+              [void]$combo.Items.Add('stable')
+              [void]$combo.Items.Add('beta')
+              [void]$combo.Items.Add('alpha')
+              [void]$combo.Items.Add('dev')
+              
+              $combo.SelectedItem = 'stable'
+              $form.Controls.Add($combo)
+
+              $btn = New-Object System.Windows.Forms.Button
+              $btn.Text = 'ショートカットを作成する'
+              $btn.Location = New-Object System.Drawing.Point(20, 90)$btn.Size = New-Object System.Drawing.Size(300, 45)
+              $btn.Add_Click({$channel = $combo.SelectedItem.ToString()$rootDir = Get-Location
+                $targetExe = Join-Path$rootDir 'bin\ProjectCleaner.exe'
+
+                if (-not (Test-Path $targetExe)) {
+                  [System.Windows.Forms.MessageBox]::Show('bin\ProjectCleaner.exe が見つかりません。', 'エラー', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Error)
+                  return
+                }
+
+                Set-Content -Path (Join-Path $rootDir 'bin\channel.txt') -Value$channel -Encoding UTF8
+
+                $wsh = New-Object -ComObject WScript.Shell
+                $shortcutPath = Join-Path $rootDir 'ProjectCleaner.lnk'$shortcut = $wsh.CreateShortcut($shortcutPath)
+                $shortcut.TargetPath =$targetExe
+                $shortcut.WorkingDirectory = Join-Path$rootDir 'bin'
+                $shortcut.Arguments = "--channel $channel"
+                $shortcut.Description = "ProjectCleaner ($channel チャンネル)"
+                $shortcut.Save()
+
+                [System.Windows.Forms.MessageBox]::Show("ショートカットを作成しました！`n`n選択チャンネル: $channel", '完了', [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information)
+                $form.Close()
+              })
+              $form.Controls.Add($btn)
+
+              [void]$form.ShowDialog()
+            }"
+            '@
+          Set-Content -Path ./publish/Setup.bat -Value $setupBatContent -Encoding UTF8
 
       - name: Create Zip Archives
         shell: pwsh
