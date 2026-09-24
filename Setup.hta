@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>ProjectCleaner セットアップ</title>
+  <HTA:APPLICATION ID="oHTA" APPLICATIONNAME="ProjectCleanerSetup" BORDER="dialog" BORDERSTYLE="normal" CAPTION="yes"
+    MAXIMIZEBUTTON="no" MINIMIZEBUTTON="yes" SCROLL="no" SINGLEINSTANCE="yes" SYSMENU="yes" />
+  <style>
+    body {
+      font-family: 'Segoe UI', "Microsoft YaHei", sans-serif;
+      background-color: #f3f3f3;
+      margin: 20px;
+      user-select: none;
+    }
+
+    .label {
+      font-size: 13px;
+      margin-bottom: 8px;
+      color: #333;
+    }
+
+    select {
+      width: 100%;
+      padding: 6px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      box-sizing: border-box;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      font-size: 14px;
+      color: #fff;
+      background-color: #0078d4;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #005a9e;
+    }
+  </style>
+
+  <script language="VBScript">
+    Sub Window_OnLoad
+    window.resizeTo 380, 240
+    End Sub
+
+    Sub CreateShortcut
+      Dim channel, fso, shell, currentDir, targetExe, shortcutPath, shortcut
+
+    channel = document.getElementById("channelSelect").value
+      Set shell = CreateObject("WScript.Shell")
+      Set fso = CreateObject("Scripting.FileSystemObject")
+
+    currentDir = fso.GetParentFolderName(replace(location.href, "file:///", ""))
+    currentDir = replace(currentDir, "/", "\")
+      targetExe = currentDir & "\bin\ProjectCleaner.exe"
+
+      If Not fso.FileExists(targetExe) Then
+        MsgBox "bin\ProjectCleaner.exe が見つかりません。", 16, "エラー"
+        Exit Sub
+      End If
+
+      Dim channelFile
+      Set channelFile = fso.CreateTextFile(currentDir & "\bin\channel.txt", True, True)
+      channelFile.WriteLine channel
+      channelFile.Close
+
+      shortcutPath = currentDir & "\ProjectCleaner.lnk"
+      Set shortcut = shell.CreateShortcut(shortcutPath)
+      shortcut.TargetPath = targetExe
+      shortcut.WorkingDirectory = currentDir & "\bin"
+      shortcut.Arguments = "--channel " & channel
+      shortcut.Description = "ProjectCleaner (" & channel & ")"
+      shortcut.Save
+
+      MsgBox "ショートカットを作成しました！" & vbCrLf & vbCrLf & "選択チャンネル: " & channel, 64, "完了"
+      window.close()
+    End Sub
+  </script>
+</head>
+
+<body>
+  <div class="label">アップデートチャンネルを選択してください:</div>
+  <select id="channelSelect">
+    <option value="stable" selected>stable</option>
+    <option value="beta">beta</option>
+    <option value="alpha">alpha</option>
+    <option value="dev">dev</option>
+  </select>
+  <button onclick="CreateShortcut()">ショートカットを作成する</button>
+</body>
+
+</html>
