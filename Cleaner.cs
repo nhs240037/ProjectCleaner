@@ -122,7 +122,7 @@ internal static class Cleaner
   {
     foreach (string unityRoot in EnumerateUnityRoots(root, unityRoots))
     {
-      log?.Invoke($"Unityモードで検査中: {unityRoot}");
+      log?.Invoke($"| Unityモードで検査中: {unityRoot}");
 
       AddFolderIfExists(Path.Combine(unityRoot, "Library"), unityRoot, "Unity ライブラリキャッシュ", results, seen);
       AddFolderIfExists(Path.Combine(unityRoot, "Temp"), unityRoot, "Unity キャッシュ", results, seen);
