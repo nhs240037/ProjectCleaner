@@ -7,14 +7,15 @@ on:
 
 jobs:
   auto-tag-release:
-    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'release:')
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: read
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@latest
+        uses: actions/checkout@7
         with:
           fetch-depth: 0
 
