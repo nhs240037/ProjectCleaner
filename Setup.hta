@@ -63,7 +63,7 @@
       targetExe = currentDir & "\bin\ProjectCleaner.exe"
 
       If Not fso.FileExists(targetExe) Then
-        MsgBox "bin\ProjectCleaner.exe が見つかりません。", 16, "エラー"
+        MsgBox targetExe&" が見つかりません。", 16, "エラー"
         Exit Sub
       End If
 
