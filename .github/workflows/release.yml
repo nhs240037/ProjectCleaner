@@ -52,7 +52,7 @@ jobs:
         id: prev_tag
         shell: pwsh
         run: |
-          $currentTag = "${{ github.ref_name }}"
+          $currentTag = "${{ inputs.tag_name }}"
           git fetch --tags --force
           if ($currentTag -match "-(dev|test|canary|beta|alpha)") {
               $suffix = $Matches[1]
@@ -76,9 +76,10 @@ jobs:
           files: | 
             ProjectCleaner-win-x64.zip
             ProjectCleaner-Update.zip
-          prerelease: ${{ contains(github.ref_name, '-') }} 
+          prerelease: ${{ contains(inputs.tag_name, '-') }} 
           discussion_category_name: Announcements 
           generate_release_notes: true
           previous_tag: ${{ steps.prev_tag.outputs.previous_tag }} 
+          tag_name: ${{inputs.tag_name}}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
