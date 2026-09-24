@@ -81,10 +81,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git tag "$NEW_TAG"
+            git push origin "$NEW_TAG"
 
-            if [ -n "${{ secrets.PERSONAL_ACCESS_TOKEN }}" ]; then
-              git push https://${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/${{ github.repository }}.git "$NEW_TAG"
-            else
-              git push origin "$NEW_TAG"
-            fi
+            gh workflow run release.yml -f tag_name="$NEW_TAG"
           fi

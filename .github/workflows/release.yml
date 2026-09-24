@@ -5,6 +5,11 @@ on:
     tags:
       - '*.*.*' 
       - '*.*.*-*' 
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag to build release for'
+        required: true
 
 jobs:
   build-and-release:
