@@ -84,5 +84,5 @@ jobs:
             git tag "$NEW_TAG"
             git push origin "$NEW_TAG"
 
-            gh workflow run release.yml -f tag_name="$NEW_TAG"
+            gh workflow run release.yml -f tag_name=$NEW_TAG
           fi
