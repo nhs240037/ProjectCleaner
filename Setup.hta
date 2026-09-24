@@ -82,7 +82,7 @@
       Set shortcut = shell.CreateShortcut(shortcutPath)
       shortcut.TargetPath = targetExe
       shortcut.WorkingDirectory = currentDir & "\bin"
-      shortcut.Arguments = "--channel " & channel
+      shortcut.Arguments = "--version-channel=" & channel
       shortcut.Description = "ProjectCleaner (" & channel & ")"
       shortcut.Save
 
