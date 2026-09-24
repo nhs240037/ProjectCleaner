@@ -79,7 +79,7 @@ namespace ProjectCleaner
         if (IsNewerVersion(CurrentVersion, latestVersion))
         {
           bool isPrerelease = targetRelease.Value.GetProperty("prerelease").GetBoolean();
-          string releaseTypeMsg = isPrerelease ? $"【プレビュー版 ({channel})】" : "【正式版】";
+          string releaseTypeMsg = isPrerelease ? $"{channel}版 " : "";
 
           var assets = targetRelease.Value.GetProperty("assets").EnumerateArray();
           var updateAsset = assets.FirstOrDefault(a =>
@@ -90,7 +90,7 @@ namespace ProjectCleaner
             string downloadUrl = updateAsset.GetProperty("browser_download_url").GetString()!;
 
             var result = MessageBox.Show(
-                $"新しい{releaseTypeMsg} ({latestVersion}) が利用可能です。\nアップデートして再起動しますか？",
+                $"新しいバージョン 【{releaseTypeMsg}{latestVersion}】 が利用可能です。\nアップデートして再起動しますか？",
                 "アップデートの確認",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Information);
