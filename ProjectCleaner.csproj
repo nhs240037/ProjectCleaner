@@ -7,7 +7,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>ProjectCleaner</AssemblyName>
     <RootNamespace>ProjectCleaner</RootNamespace>
-    <PublishAot>true</PublishAot>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
 </Project>
 
