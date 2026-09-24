@@ -51,15 +51,21 @@
     window.resizeTo 380, 240
     End Sub
 
+    Function URLDecode(str)
+      URLDecode = document.parentWindow.decodeURIComponent(str)
+    End Function
+
     Sub CreateShortcut
-      Dim channel, fso, shell, currentDir, targetExe, shortcutPath, shortcut
+      Dim channel, fso, shell, currentDir, targetExe, shortcutPath, shortcut, rawPath
 
     channel = document.getElementById("channelSelect").value
       Set shell = CreateObject("WScript.Shell")
       Set fso = CreateObject("Scripting.FileSystemObject")
 
-    currentDir = fso.GetParentFolderName(replace(location.href, "file:///", ""))
-    currentDir = replace(currentDir, "/", "\")
+    rawPath = replace(location.href, "file:///", "")
+    rawPath = URLDecode(rawPath)
+
+    currentDir = fso.GetParentFolderName(replace(rawPath, "/", "\"))
       targetExe = currentDir & "\bin\ProjectCleaner.exe"
 
       If Not fso.FileExists(targetExe) Then
