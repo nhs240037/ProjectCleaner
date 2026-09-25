@@ -15,8 +15,14 @@ internal sealed class MainForm : Form
   private readonly Button _selectAllButton = new();
   private readonly Button _selectNoneButton = new();
   private readonly Label _summaryLabel = new();
+  private readonly Panel _progressTrack = new();
+  private readonly Panel _progressFill = new();
+  private readonly System.Windows.Forms.Timer _progressTimer = new();
+  private readonly Panel _summaryProgressPanel = new();
   private readonly string _stateFilePath;
   private bool _suspendAutoSave;
+  private int _progressValue;
+  private int _progressTarget;
 
   // アップデートチェック用のチャンネル（デフォルトは Stable）
   private readonly UpdateChecker.VersionChannel _versionChannel = UpdateChecker.VersionChannel.Stable;
@@ -184,15 +190,45 @@ internal sealed class MainForm : Form
     _logBox.Height = 180;
     _logBox.BackColor = Color.White;
 
-    _summaryLabel.Dock = DockStyle.Bottom;
-    _summaryLabel.Height = 28;
-    _summaryLabel.Padding = new Padding(4, 6, 4, 4);
+    _summaryProgressPanel.Dock = DockStyle.Bottom;
+    _summaryProgressPanel.Height = 28;
+    _summaryProgressPanel.Padding = new Padding(0, 0, 0, 0);
+    _summaryProgressPanel.BorderStyle = BorderStyle.None;
+
+    _summaryLabel.Dock = DockStyle.Left;
+    _summaryLabel.Width = 300;
+    _summaryLabel.AutoSize = false;
+    _summaryLabel.TextAlign = ContentAlignment.MiddleLeft;
+    _summaryLabel.Padding = new Padding(4, 6, 0, 4);
+
+    _progressTrack.Dock = DockStyle.Fill;
+    _progressTrack.Height = 22;
+    _progressTrack.BorderStyle = BorderStyle.Fixed3D;
+    _progressTrack.Margin = new Padding(0);
+    _progressTrack.Visible = false;
+
+    _progressFill.Dock = DockStyle.Left;
+    _progressFill.Width = 0;
+    _progressFill.Height = 18;
+    _progressFill.Margin = new Padding(1);
+    _progressFill.BorderStyle = BorderStyle.None;
+    _progressFill.BackColor = Color.RoyalBlue;
+
+    _progressTimer.Interval = 30;
+    _progressTimer.Tick += (_, _) => AdvancePseudoProgress();
+
+    _progressTrack.Controls.Add(_progressFill);
+    _summaryProgressPanel.Controls.Add(_summaryLabel);
+    _summaryProgressPanel.Controls.Add(_progressTrack);
 
     targetPanel.Controls.Add(_targetsView);
     targetPanel.Controls.Add(targetButtonBar);
-    targetPanel.Controls.Add(_summaryLabel);
+    targetPanel.Controls.Add(_summaryProgressPanel);
     targetPanel.Controls.Add(_logBox);
     targetPanel.Controls.Add(targetTitle);
+
+    _logBox.Height = 180;
+    _logBox.BackColor = Color.White;
   }
 
   private void WireEvents()
@@ -274,21 +310,43 @@ internal sealed class MainForm : Form
     }
 
     SetBusy(true);
+    _progressTarget = roots.Length;
+    _progressValue = 0;
+    _progressFill.Width = 0;
+    SetScanningProgressVisible(true);
+    _progressTimer.Start();
     Log("スキャン開始.");
 
     IReadOnlyList<Candidate> candidates = Array.Empty<Candidate>();
     try
     {
-      candidates = await System.Threading.Tasks.Task.Run(() => Cleaner.ScanRoots(roots, Log));
+      candidates = await System.Threading.Tasks.Task.Run(() =>
+        Cleaner.ScanRoots(roots, Log, (current, total) => UpdateScanProgress(current, total)));
     }
     finally
     {
+      _progressTimer.Stop();
       SetBusy(false);
+      SetScanningProgressVisible(false);
     }
 
     PopulateTargets(candidates);
     Log($"スキャン完了. {candidates.Count} 個のゴミが発掘されました.");
     UpdateSummary();
+  }
+
+  private void UpdateScanProgress(int current, int total)
+  {
+    if (InvokeRequired)
+    {
+      _ = BeginInvoke(new Action<int, int>(UpdateScanProgress), current, total);
+      return;
+    }
+    _progressValue = current;
+    _progressTarget = total;
+    int width = _progressTrack.Width > 0 ? (int)(_progressTrack.Width * ((double)current / total)) : 0;
+    _progressFill.Width = Math.Max(0, width - 2);
+    _summaryLabel.Text = $"検査中: {current}/{total}";
   }
 
   private void PopulateTargets(IReadOnlyList<Candidate> candidates)
@@ -410,6 +468,54 @@ internal sealed class MainForm : Form
     int total = _targetsView.Items.Count;
     int checkedCount = _targetsView.CheckedItems.Count;
     _summaryLabel.Text = $"Roots: {_rootsList.Items.Count}    Targets: {total}    Checked: {checkedCount}";
+  }
+
+  private void SetScanningProgressVisible(bool visible)
+  {
+    _progressTrack.Visible = visible;
+    if (visible)
+    {
+      _progressFill.Width = 0;
+      _progressTimer.Start();
+    }
+    else
+    {
+      _progressTimer.Stop();
+      _summaryLabel.Text = $"Roots: {_rootsList.Items.Count}    Targets: {_targetsView.Items.Count}    Checked: {_targetsView.CheckedItems.Count}";
+    }
+  }
+
+  private void AdvancePseudoProgress()
+  {
+    if (!_progressTrack.Visible)
+    {
+      return;
+    }
+
+    if (_progressTarget <= 0)
+    {
+      return;
+    }
+
+    int trackWidth = _progressTrack.Width;
+    if (trackWidth <= 0)
+    {
+      return;
+    }
+
+    double ratio = (double)_progressValue / _progressTarget;
+    int maxWidth = trackWidth - 4;
+    int targetWidth = (int)(maxWidth * ratio);
+    int currentWidth = _progressFill.Width;
+
+    if (targetWidth > currentWidth)
+    {
+      _progressFill.Width = targetWidth;
+    }
+    else if (targetWidth < currentWidth)
+    {
+      _progressFill.Width = targetWidth;
+    }
   }
 
   private void SetBusy(bool busy)
