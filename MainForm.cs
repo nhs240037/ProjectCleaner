@@ -15,14 +15,10 @@ internal sealed class MainForm : Form
   private readonly Button _selectAllButton = new();
   private readonly Button _selectNoneButton = new();
   private readonly Label _summaryLabel = new();
-  private readonly Panel _progressTrack = new();
-  private readonly Panel _progressFill = new();
-  private readonly System.Windows.Forms.Timer _progressTimer = new();
+  private readonly PseudoProgressBar _pseudoProgressBar = new();
   private readonly Panel _summaryProgressPanel = new();
   private readonly string _stateFilePath;
   private bool _suspendAutoSave;
-  private int _progressValue;
-  private int _progressTarget;
 
   // アップデートチェック用のチャンネル（デフォルトは Stable）
   private readonly UpdateChecker.VersionChannel _versionChannel = UpdateChecker.VersionChannel.Stable;
@@ -66,7 +62,7 @@ internal sealed class MainForm : Form
 
   private static string GetCurrentVersion()
   {
-    var version = Assembly.GetExecutingAssembly()
+    string? version = Assembly.GetExecutingAssembly()
         .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
         .InformationalVersion;
 
@@ -74,7 +70,7 @@ internal sealed class MainForm : Form
     {
       // '+' (ビルドメタデータ/コミットハッシュ) が含まれていれば削除
       int plusIndex = version.IndexOf('+');
-      if (plusIndex >= 0) version = version.Substring(0, plusIndex);
+      if (plusIndex >= 0) version = version[..plusIndex];
       return version;
     }
 
@@ -201,25 +197,10 @@ internal sealed class MainForm : Form
     _summaryLabel.TextAlign = ContentAlignment.MiddleLeft;
     _summaryLabel.Padding = new Padding(4, 6, 0, 4);
 
-    _progressTrack.Dock = DockStyle.Fill;
-    _progressTrack.Height = 22;
-    _progressTrack.BorderStyle = BorderStyle.Fixed3D;
-    _progressTrack.Margin = new Padding(0);
-    _progressTrack.Visible = false;
+    _pseudoProgressBar.Dock = DockStyle.Fill;
 
-    _progressFill.Dock = DockStyle.Left;
-    _progressFill.Width = 0;
-    _progressFill.Height = 18;
-    _progressFill.Margin = new Padding(1);
-    _progressFill.BorderStyle = BorderStyle.None;
-    _progressFill.BackColor = Color.RoyalBlue;
-
-    _progressTimer.Interval = 30;
-    _progressTimer.Tick += (_, _) => AdvancePseudoProgress();
-
-    _progressTrack.Controls.Add(_progressFill);
     _summaryProgressPanel.Controls.Add(_summaryLabel);
-    _summaryProgressPanel.Controls.Add(_progressTrack);
+    _summaryProgressPanel.Controls.Add(_pseudoProgressBar);
 
     targetPanel.Controls.Add(_targetsView);
     targetPanel.Controls.Add(targetButtonBar);
@@ -310,11 +291,9 @@ internal sealed class MainForm : Form
     }
 
     SetBusy(true);
-    _progressTarget = roots.Length;
-    _progressValue = 0;
-    _progressFill.Width = 0;
-    SetScanningProgressVisible(true);
-    _progressTimer.Start();
+    _pseudoProgressBar.SetVisible(true);
+    _pseudoProgressBar.Start(roots.Length, roots.Length);
+    _summaryLabel.Text = "検査中: 0/" + roots.Length;
     Log("スキャン開始.");
 
     IReadOnlyList<Candidate> candidates = Array.Empty<Candidate>();
@@ -325,9 +304,8 @@ internal sealed class MainForm : Form
     }
     finally
     {
-      _progressTimer.Stop();
       SetBusy(false);
-      SetScanningProgressVisible(false);
+      _pseudoProgressBar.HideProgress();
     }
 
     PopulateTargets(candidates);
@@ -342,11 +320,8 @@ internal sealed class MainForm : Form
       _ = BeginInvoke(new Action<int, int>(UpdateScanProgress), current, total);
       return;
     }
-    _progressValue = current;
-    _progressTarget = total;
-    int width = _progressTrack.Width > 0 ? (int)(_progressTrack.Width * ((double)current / total)) : 0;
-    _progressFill.Width = Math.Max(0, width - 2);
-    _summaryLabel.Text = $"検査中: {current}/{total}";
+    _pseudoProgressBar.Update(current, total);
+    _summaryLabel.Text = total <= 0 ? "検査中: n/a" : $"検査中: {current}/{total}";
   }
 
   private void PopulateTargets(IReadOnlyList<Candidate> candidates)
@@ -470,54 +445,6 @@ internal sealed class MainForm : Form
     _summaryLabel.Text = $"Roots: {_rootsList.Items.Count}    Targets: {total}    Checked: {checkedCount}";
   }
 
-  private void SetScanningProgressVisible(bool visible)
-  {
-    _progressTrack.Visible = visible;
-    if (visible)
-    {
-      _progressFill.Width = 0;
-      _progressTimer.Start();
-    }
-    else
-    {
-      _progressTimer.Stop();
-      _summaryLabel.Text = $"Roots: {_rootsList.Items.Count}    Targets: {_targetsView.Items.Count}    Checked: {_targetsView.CheckedItems.Count}";
-    }
-  }
-
-  private void AdvancePseudoProgress()
-  {
-    if (!_progressTrack.Visible)
-    {
-      return;
-    }
-
-    if (_progressTarget <= 0)
-    {
-      return;
-    }
-
-    int trackWidth = _progressTrack.Width;
-    if (trackWidth <= 0)
-    {
-      return;
-    }
-
-    double ratio = (double)_progressValue / _progressTarget;
-    int maxWidth = trackWidth - 4;
-    int targetWidth = (int)(maxWidth * ratio);
-    int currentWidth = _progressFill.Width;
-
-    if (targetWidth > currentWidth)
-    {
-      _progressFill.Width = targetWidth;
-    }
-    else if (targetWidth < currentWidth)
-    {
-      _progressFill.Width = targetWidth;
-    }
-  }
-
   private void SetBusy(bool busy)
   {
     _scanButton.Enabled = !busy;
@@ -617,6 +544,18 @@ internal sealed class MainForm : Form
     {
       Log($"設定の保存に失敗しました: {ex.Message}");
     }
+  }
+
+  private void InitializeComponent()
+  {
+    SuspendLayout();
+    // 
+    // MainForm
+    // 
+    ClientSize = new Size(1084, 681);
+    Name = "MainForm";
+    ResumeLayout(false);
+
   }
 
   private static string GetStateFilePath()

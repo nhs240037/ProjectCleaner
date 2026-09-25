@@ -30,3 +30,6 @@
 ## Working conventions
 - Keep changes scoped to the single app project unless a release workflow change is explicitly required.
 - Re-run the verified restore/build commands after edits; there is no local lint/typecheck/test shortcut beyond CI.
+
+
+- All tasks are performed according to spec-workflow-guide.
