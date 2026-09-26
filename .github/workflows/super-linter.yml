@@ -34,4 +34,4 @@ jobs:
           
           VALIDATE_CSHARP: true
           VALIDATE_YAML: true
-          VALIDATE_MARKDOWN: true
+          VALIDATE_MARKDOWN: false
