@@ -3,6 +3,10 @@ name: Release Drafter
 on:
   pull_request:
     types: [closed]
+  push:
+    tags:
+      - '*.*.*' 
+      - '*.*.*-*' 
 
 permissions:
   contents: write
