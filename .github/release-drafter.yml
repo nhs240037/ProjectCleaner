@@ -4,33 +4,33 @@ categories:
   - title: '🚀 新機能・機能追加 / New Features'
     semver-increment: patch
     when: 
-      label:
+      labels:
         - 'feature'
         - 'enhancement'
   - title: '🐛 バグ修正 / Bug Fixes'
     when:
-      label:
+      labels:
         - 'bug'
         - 'fix'
   - title: '🧰 依存関係・ビルド調整 / Maintenance'
     when:
-      label:
+      labels:
         - 'dependencies'
         - 'chore'
         - 'ci'
   - type: 'pre-exclude'
     when:
-      label:
+      labels:
         - 'skip-changelog'
   - type: 'version-resolver'
     semver-increment: 'major'
     when: 
-      label:
+      labels:
         - 'release:major'
   - type: 'version-resolver'
     semver-increment: 'minor'
     when: 
-      label:
+      labels:
         - 'release:minor'
 change-template: '- $TITLE (#$NUMBER) @$AUTHOR'
 template: |
