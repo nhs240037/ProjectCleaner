@@ -2,7 +2,7 @@ name-template: '$NEXT_PATCH_VERSION'
 tag-template: '$NEXT_PATCH_VERSION'
 categories:
   - title: '🚀 新機能・機能追加 / New Features'
-    semver-increment: patch
+    semver-increment: minor
     when: 
       labels:
         - 'feature'
@@ -22,16 +22,38 @@ categories:
     when:
       labels:
         - 'skip-changelog'
+  # --- バージョン解決ルール (Major) ---
   - type: 'version-resolver'
     semver-increment: 'major'
     when: 
       labels:
         - 'release:major'
+        - 'release:major-dev'
+        - 'release:major-alpha'
+        - 'release:major-beta'
+
+  # --- バージョン解決ルール (Minor) ---
   - type: 'version-resolver'
     semver-increment: 'minor'
     when: 
       labels:
         - 'release:minor'
+        - 'release:minor-dev'
+        - 'release:minor-alpha'
+        - 'release:minor-beta'
+
+  # --- バージョン解決ルール (Patch) ---
+  - type: 'version-resolver'
+    semver-increment: 'patch'
+    when:
+      labels:
+        - 'release:patch'
+        - 'release:dev'
+        - 'release:alpha'
+        - 'release:beta'
+        
+  - type: 'version-resolver'
+    semver-increment: 'patch'
 change-template: '- $TITLE (#$NUMBER) @$AUTHOR'
 template: |
   ## 変更内容 / What's Changed

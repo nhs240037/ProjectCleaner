@@ -14,6 +14,7 @@ permissions:
 
 jobs:
   update_full_release_draft:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - uses: release-drafter/release-drafter@v7
@@ -21,30 +22,30 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           prerelease: false
-  update_beta_release_draft:
+
+  update_prerelease_draft:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
+      - name: Determine Prerelease Identifier
+        id: check_id
+        run: |
+          LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
+          
+          if echo "$LABELS" | grep -qE 'release:(major-dev|minor-dev|dev)'; then
+            echo "identifier=dev" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -qE 'release:(major-alpha|minor-alpha|alpha)'; then
+            echo "identifier=alpha" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -qE 'release:(major-beta|minor-beta|beta)'; then
+            echo "identifier=beta" >> $GITHUB_OUTPUT
+          else
+            # デフォルトのプレリリース識別子
+            echo "identifier=dev" >> $GITHUB_OUTPUT
+          fi
+
       - uses: release-drafter/release-drafter@v7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           prerelease: true
-          prerelease-identifier: 'beta'
-  update_alpha_release_draft:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: release-drafter/release-drafter@v7
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          prerelease: true
-          prerelease-identifier: 'alpha'
-  update_dev_release_draft:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: release-drafter/release-drafter@v7
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          prerelease: true
-          prerelease-identifier: '-dev'
+          prerelease-identifier: ${{ steps.check_id.outputs.identifier }}
