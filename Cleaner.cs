@@ -17,14 +17,20 @@ internal sealed record Candidate(
 
 internal static class Cleaner
 {
-  public static IReadOnlyList<Candidate> ScanRoots(IEnumerable<string> roots, Action<string>? log = null)
+  public static IReadOnlyList<Candidate> ScanRoots(
+      IEnumerable<string> roots,
+      Action<string>? log = null,
+      Action<int, int>? progress = null)
   {
     List<Candidate> results = [];
     HashSet<string> seen = new(StringComparer.OrdinalIgnoreCase);
     HashSet<string> unityRoots = new(StringComparer.OrdinalIgnoreCase);
+    string[] rootsArray = roots.ToArray();
+    int totalRoots = rootsArray.Length;
 
-    foreach (string rootInput in roots)
+    for (int i = 0; i < totalRoots; i++)
     {
+      string rootInput = rootsArray[i];
       if (string.IsNullOrWhiteSpace(rootInput))
       {
         continue;
@@ -38,6 +44,7 @@ internal static class Cleaner
       }
 
       log?.Invoke($"検査中: {root}");
+      progress?.Invoke(i + 1, totalRoots);
 
       ScanVisualStudio(root, results, seen);
       ScanUnity(root, results, seen, log, unityRoots);

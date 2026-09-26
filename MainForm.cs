@@ -15,6 +15,8 @@ internal sealed class MainForm : Form
   private readonly Button _selectAllButton = new();
   private readonly Button _selectNoneButton = new();
   private readonly Label _summaryLabel = new();
+  private readonly PseudoProgressBar _pseudoProgressBar = new();
+  private readonly Panel _summaryProgressPanel = new();
   private readonly string _stateFilePath;
   private bool _suspendAutoSave;
 
@@ -60,7 +62,7 @@ internal sealed class MainForm : Form
 
   private static string GetCurrentVersion()
   {
-    var version = Assembly.GetExecutingAssembly()
+    string? version = Assembly.GetExecutingAssembly()
         .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
         .InformationalVersion;
 
@@ -68,7 +70,7 @@ internal sealed class MainForm : Form
     {
       // '+' (ビルドメタデータ/コミットハッシュ) が含まれていれば削除
       int plusIndex = version.IndexOf('+');
-      if (plusIndex >= 0) version = version.Substring(0, plusIndex);
+      if (plusIndex >= 0) version = version[..plusIndex];
       return version;
     }
 
@@ -184,15 +186,30 @@ internal sealed class MainForm : Form
     _logBox.Height = 180;
     _logBox.BackColor = Color.White;
 
-    _summaryLabel.Dock = DockStyle.Bottom;
-    _summaryLabel.Height = 28;
-    _summaryLabel.Padding = new Padding(4, 6, 4, 4);
+    _summaryProgressPanel.Dock = DockStyle.Bottom;
+    _summaryProgressPanel.Height = 28;
+    _summaryProgressPanel.Padding = new Padding(0, 0, 0, 0);
+    _summaryProgressPanel.BorderStyle = BorderStyle.None;
+
+    _summaryLabel.Dock = DockStyle.Left;
+    _summaryLabel.Width = 300;
+    _summaryLabel.AutoSize = false;
+    _summaryLabel.TextAlign = ContentAlignment.MiddleLeft;
+    _summaryLabel.Padding = new Padding(4, 6, 0, 4);
+
+    _pseudoProgressBar.Dock = DockStyle.Fill;
+
+    _summaryProgressPanel.Controls.Add(_summaryLabel);
+    _summaryProgressPanel.Controls.Add(_pseudoProgressBar);
 
     targetPanel.Controls.Add(_targetsView);
     targetPanel.Controls.Add(targetButtonBar);
-    targetPanel.Controls.Add(_summaryLabel);
+    targetPanel.Controls.Add(_summaryProgressPanel);
     targetPanel.Controls.Add(_logBox);
     targetPanel.Controls.Add(targetTitle);
+
+    _logBox.Height = 180;
+    _logBox.BackColor = Color.White;
   }
 
   private void WireEvents()
@@ -274,21 +291,40 @@ internal sealed class MainForm : Form
     }
 
     SetBusy(true);
+    _summaryLabel.Visible = false;
+    _pseudoProgressBar.SetVisible(true);
+    _pseudoProgressBar.Start(roots.Length, roots.Length);
+    _pseudoProgressBar.Text = "検査中: 0/" + roots.Length;
+    _pseudoProgressBar.State = PseudoProgressBar.PseudoProgressState.progress;
     Log("スキャン開始.");
 
     IReadOnlyList<Candidate> candidates = Array.Empty<Candidate>();
     try
     {
-      candidates = await System.Threading.Tasks.Task.Run(() => Cleaner.ScanRoots(roots, Log));
+      candidates = await System.Threading.Tasks.Task.Run(() =>
+        Cleaner.ScanRoots(roots, Log, (current, total) => UpdateScanProgress(current, total)));
     }
     finally
     {
       SetBusy(false);
+      _pseudoProgressBar.HideProgress();
     }
 
     PopulateTargets(candidates);
+    _summaryLabel.Visible = true;
     Log($"スキャン完了. {candidates.Count} 個のゴミが発掘されました.");
     UpdateSummary();
+  }
+
+  private void UpdateScanProgress(int current, int total)
+  {
+    if (InvokeRequired)
+    {
+      _ = BeginInvoke(new Action<int, int>(UpdateScanProgress), current, total);
+      return;
+    }
+    _pseudoProgressBar.Update(current, total);
+    _pseudoProgressBar.Text = total <= 0 ? "検査中: n/a" : $"検査中: {current}/{total}";
   }
 
   private void PopulateTargets(IReadOnlyList<Candidate> candidates)
@@ -345,6 +381,14 @@ internal sealed class MainForm : Form
     }
 
     SetBusy(true);
+    _summaryLabel.Visible = false;
+    _pseudoProgressBar.SetVisible(true);
+    _pseudoProgressBar.Start(0, checkedCandidates.Count);
+    _pseudoProgressBar.Text = "検査中: 0/" + checkedCandidates.Count;
+    _pseudoProgressBar.State = PseudoProgressBar.PseudoProgressState.progress;
+
+    int deleteCount = 0;
+
     try
     {
       await System.Threading.Tasks.Task.Run(() =>
@@ -352,12 +396,16 @@ internal sealed class MainForm : Form
         foreach (Candidate candidate in checkedCandidates)
         {
           Log($"{(candidate.IsDirectory ? "フォルダ" : "ファイル")}: {candidate.Path}");
+          deleteCount++;
+          UpdateDeleteProgress(deleteCount, checkedCandidates.Count);
           if (Cleaner.TryDelete(candidate, out string? error))
           {
+            _pseudoProgressBar.State = PseudoProgressBar.PseudoProgressState.error;
             Log("→ 削除済み");
           }
           else
           {
+            _pseudoProgressBar.State = PseudoProgressBar.PseudoProgressState.warn;
             Log($"→ 削除失敗: {error}");
           }
         }
@@ -366,6 +414,7 @@ internal sealed class MainForm : Form
     finally
     {
       SetBusy(false);
+      _pseudoProgressBar.HideProgress();
     }
 
     List<ListViewItem> remaining = _targetsView.Items.Cast<ListViewItem>().Where(item => item.Checked).ToList();
@@ -385,6 +434,17 @@ internal sealed class MainForm : Form
 
     Log("掃除が完了しました.");
     UpdateSummary();
+  }
+
+  private void UpdateDeleteProgress(int current, int total)
+  {
+    if (InvokeRequired)
+    {
+      _ = BeginInvoke(new Action<int, int>(UpdateDeleteProgress), current, total);
+      return;
+    }
+    _pseudoProgressBar.Update(current, total);
+    _pseudoProgressBar.Text = total <= 0 ? "掃除中: n/a" : $"掃除中: {current}/{total}";
   }
 
   private void SetAllChecked(bool isChecked)
@@ -511,6 +571,18 @@ internal sealed class MainForm : Form
     {
       Log($"設定の保存に失敗しました: {ex.Message}");
     }
+  }
+
+  private void InitializeComponent()
+  {
+    SuspendLayout();
+    // 
+    // MainForm
+    // 
+    ClientSize = new Size(1084, 681);
+    Name = "MainForm";
+    ResumeLayout(false);
+
   }
 
   private static string GetStateFilePath()

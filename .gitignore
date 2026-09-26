@@ -591,3 +591,5 @@ obj/
 
 # End of https://www.toptal.com/developers/gitignore/api/dotnetcore,visualstudio,csharp
 ipchDeleter.bat
+.omo/run-continuation
+.spec-workflow/approvals/**/.snapshots
