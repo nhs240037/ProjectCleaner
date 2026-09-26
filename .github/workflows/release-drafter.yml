@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   update_full_release_draft:
-    if: github.event.pull_request.merged == true
+    # if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - uses: release-drafter/release-drafter@v7
@@ -24,7 +24,7 @@ jobs:
           prerelease: false
 
   update_prerelease_draft:
-    if: github.event.pull_request.merged == true
+    # if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - name: Determine Prerelease Identifier
