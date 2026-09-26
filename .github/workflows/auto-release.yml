@@ -34,25 +34,26 @@ jobs:
             exit 0
           fi
 
-          ALL_TAGS=$(git tag -l)
-          if [ -z "$ALL_TAGS" ]; then
+          LATEST_TAG=$(git tag -l | sort -V | tail -n 1)
+
+          if [ -z "$LATEST_TAG" ]; then
             BASE_VERSION="1.0.0"
+            IS_PRERELEASE=false
           else
-            BASE_VERSION=$(echo "$ALL_TAGS" | sed -E 's/([0-9]+\.[0-9]+\.[0-9]+).*/\1/' | sort -V | tail -n 1)
+            if [[ "$LATEST_TAG" =~ - ]]; then
+              IS_PRERELEASE=true
+              BASE_VERSION=$(echo "$LATEST_TAG" | sed -E 's/^([0-9]+\.[0-9]+\.[0-9]+).*/\1/')
+            else
+              IS_PRERELEASE=false
+              BASE_VERSION="$LATEST_TAG"
+            fi
           fi
 
+          echo "Latest Tag: $LATEST_TAG"
           echo "Base Version detected: $BASE_VERSION"
-          IFS='.' read -r major minor patch <<< "$BASE_VERSION"
+          echo "Is Prerelease: $IS_PRERELEASE"
 
-          if [[ "$LABELS" =~ "release:major" ]]; then
-            TARGET_VERSION="$((major + 1)).0.0"
-          elif [[ "$LABELS" =~ "release:minor" ]]; then
-            TARGET_VERSION="${major}.$((minor + 1)).0"
-          elif [[ "$LABELS" =~ "release:patch" ]]; then
-            TARGET_VERSION="${major}.${minor}.$((patch + 1))"
-          else
-            TARGET_VERSION="$BASE_VERSION"
-          fi
+          IFS='.' read -r major minor patch <<< "$BASE_VERSION"
 
           SUFFIX_TYPE=""
           if [[ "$LABELS" =~ "dev" ]]; then
@@ -63,11 +64,25 @@ jobs:
             SUFFIX_TYPE="-beta"
           fi
 
+          if [ "$IS_PRERELEASE" = true ] && [ -z "$SUFFIX_TYPE" ]; then
+            TARGET_VERSION="$BASE_VERSION"
+          else
+            if [[ "$LABELS" =~ "release:major" ]]; then
+              TARGET_VERSION="$((major + 1)).0.0"
+            elif [[ "$LABELS" =~ "release:minor" ]]; then
+              TARGET_VERSION="${major}.$((minor + 1)).0"
+            elif [[ "$LABELS" =~ "release:patch" ]]; then
+              TARGET_VERSION="${major}.${minor}.$((patch + 1))"
+            else
+              TARGET_VERSION="$BASE_VERSION"
+            fi
+          fi
+
           NEW_TAG=""
 
           if [ -n "$SUFFIX_TYPE" ]; then
-            LATEST=$(git tag -l "${TARGET_VERSION}${SUFFIX_TYPE}.*" | sort -V | tail -n 1)
-            if [[ "$LATEST" =~ \.([0-9]+)$ ]]; then
+            MATCHING_TAG=$(git tag -l "${TARGET_VERSION}${SUFFIX_TYPE}.*" | sort -V | tail -n 1)
+            if [[ "$MATCHING_TAG" =~ \.([0-9]+)$ ]]; then
               NEXT_NUM=$((${BASH_REMATCH[1]} + 1))
             else
               NEXT_NUM=1
