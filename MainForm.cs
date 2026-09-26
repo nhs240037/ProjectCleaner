@@ -291,9 +291,11 @@ internal sealed class MainForm : Form
     }
 
     SetBusy(true);
+    _summaryLabel.Visible = false;
     _pseudoProgressBar.SetVisible(true);
     _pseudoProgressBar.Start(roots.Length, roots.Length);
-    _summaryLabel.Text = "検査中: 0/" + roots.Length;
+    _pseudoProgressBar.Text = "検査中: 0/" + roots.Length;
+    _pseudoProgressBar.State = PseudoProgressBar.PseudoProgressState.progress;
     Log("スキャン開始.");
 
     IReadOnlyList<Candidate> candidates = Array.Empty<Candidate>();
@@ -309,6 +311,7 @@ internal sealed class MainForm : Form
     }
 
     PopulateTargets(candidates);
+    _summaryLabel.Visible = true;
     Log($"スキャン完了. {candidates.Count} 個のゴミが発掘されました.");
     UpdateSummary();
   }
@@ -321,7 +324,7 @@ internal sealed class MainForm : Form
       return;
     }
     _pseudoProgressBar.Update(current, total);
-    _summaryLabel.Text = total <= 0 ? "検査中: n/a" : $"検査中: {current}/{total}";
+    _pseudoProgressBar.Text = total <= 0 ? "検査中: n/a" : $"検査中: {current}/{total}";
   }
 
   private void PopulateTargets(IReadOnlyList<Candidate> candidates)
@@ -378,6 +381,14 @@ internal sealed class MainForm : Form
     }
 
     SetBusy(true);
+    _summaryLabel.Visible = false;
+    _pseudoProgressBar.SetVisible(true);
+    _pseudoProgressBar.Start(0, checkedCandidates.Count);
+    _pseudoProgressBar.Text = "検査中: 0/" + checkedCandidates.Count;
+    _pseudoProgressBar.State = PseudoProgressBar.PseudoProgressState.progress;
+
+    int deleteCount = 0;
+
     try
     {
       await System.Threading.Tasks.Task.Run(() =>
@@ -385,12 +396,16 @@ internal sealed class MainForm : Form
         foreach (Candidate candidate in checkedCandidates)
         {
           Log($"{(candidate.IsDirectory ? "フォルダ" : "ファイル")}: {candidate.Path}");
+          deleteCount++;
+          UpdateDeleteProgress(deleteCount, checkedCandidates.Count);
           if (Cleaner.TryDelete(candidate, out string? error))
           {
+            _pseudoProgressBar.State = PseudoProgressBar.PseudoProgressState.error;
             Log("→ 削除済み");
           }
           else
           {
+            _pseudoProgressBar.State = PseudoProgressBar.PseudoProgressState.warn;
             Log($"→ 削除失敗: {error}");
           }
         }
@@ -399,6 +414,7 @@ internal sealed class MainForm : Form
     finally
     {
       SetBusy(false);
+      _pseudoProgressBar.HideProgress();
     }
 
     List<ListViewItem> remaining = _targetsView.Items.Cast<ListViewItem>().Where(item => item.Checked).ToList();
@@ -418,6 +434,17 @@ internal sealed class MainForm : Form
 
     Log("掃除が完了しました.");
     UpdateSummary();
+  }
+
+  private void UpdateDeleteProgress(int current, int total)
+  {
+    if (InvokeRequired)
+    {
+      _ = BeginInvoke(new Action<int, int>(UpdateDeleteProgress), current, total);
+      return;
+    }
+    _pseudoProgressBar.Update(current, total);
+    _pseudoProgressBar.Text = total <= 0 ? "掃除中: n/a" : $"掃除中: {current}/{total}";
   }
 
   private void SetAllChecked(bool isChecked)
