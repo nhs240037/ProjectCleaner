@@ -33,14 +33,14 @@ jobs:
           LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
           
           if echo "$LABELS" | grep -qE 'release:(major-dev|minor-dev|dev)'; then
-            echo "identifier=dev" >> $GITHUB_OUTPUT
+            echo "identifier=-dev" >> $GITHUB_OUTPUT
           elif echo "$LABELS" | grep -qE 'release:(major-alpha|minor-alpha|alpha)'; then
             echo "identifier=alpha" >> $GITHUB_OUTPUT
           elif echo "$LABELS" | grep -qE 'release:(major-beta|minor-beta|beta)'; then
             echo "identifier=beta" >> $GITHUB_OUTPUT
           else
             # デフォルトのプレリリース識別子
-            echo "identifier=dev" >> $GITHUB_OUTPUT
+            echo "identifier=-dev" >> $GITHUB_OUTPUT
           fi
 
       - uses: release-drafter/release-drafter@v7
